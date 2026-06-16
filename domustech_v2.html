@@ -131,7 +131,7 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: #fff; }
   100% { transform: translateY(100vh) rotate(-270deg) translateX(-30px); opacity: 0; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .falling-icon { position:fixed; pointer-events:none; z-index:0; font-size:18px; animation: iconFall linear infinite; }
+  .falling-icon { position:fixed; pointer-events:none; z-index:1; font-size:18px; animation: iconFall linear infinite; opacity:0.5; }
   .falling-icon:nth-child(1)  { left:3%;  animation-duration:7s;  animation-delay:0s;   }
   .falling-icon:nth-child(2)  { left:10%; animation-duration:10s; animation-delay:1.5s; animation-name:iconFloat; }
   .falling-icon:nth-child(3)  { left:19%; animation-duration:8s;  animation-delay:3s;   }
