@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DomusTech — Todo para tu hogar</title>
+<meta name="description" content="Electrodomésticos, climatización y más. Comprá fácil y recibí en tu casa. Buenos Aires, Argentina.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="config.js"></script>
+<script src="products.js"></script>
+<script>
+  // Supabase config
+  const SUPABASE_URL = 'https://erjrvwrqujuzmxtkhvrw.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_o2woVUsiumTBfeHTIuJlEQ_l1k57h0R';
+  const TIENDA_ID = 'domustech'; // ID único por tienda
+
+  async function sbFetch(path, options = {}) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+      ...options,
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+        ...options.headers
+      }
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  async function sbGuardarConfig(data) {
+    return sbFetch('config?id=eq.' + TIENDA_ID, {
+      method: 'PATCH', body: JSON.stringify({ data, updated_at: new Date().toISOString() })
+    }).catch(() => sbFetch('config', {
+      method: 'POST', body: JSON.stringify({ id: TIENDA_ID, data })
+    }));
+  }
+
+  async function sbCargarConfig() {
+    const rows = await sbFetch('config?id=eq.' + TIENDA_ID + '&select=data');
+    return rows?.[0]?.data || null;
+  }
+
+  async function sbGuardarProductos(productos) {
+    // Borrar productos viejos de esta tienda
+    await sbFetch('productos?tienda_id=eq.' + TIENDA_ID, { method: 'DELETE' });
+    if (productos.length === 0) return;
+    const rows = productos.map(p => ({ id: TIENDA_ID + '_' + p.id, tienda_id: TIENDA_ID, data: p }));
+    return sbFetch('productos', { method: 'POST', body: JSON.stringify(rows) });
+  }
+
+  async function sbCargarProductos() {
+    const rows = await sbFetch('productos?tienda_id=eq.' + TIENDA_ID + '&select=data');
+    return rows?.map(r => r.data) || [];
+  }
+</script>
+<script>
+  const _sc = localStorage.getItem('domustech_config');
+  const _ac = _sc ? JSON.parse(_sc) : (window.STORE_CONFIG || {});
+  const _col = _ac.colors || {};
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+        colors: {
+          dt: {
+            primary: _col.primary || '#1e3a8a',
+            primaryHover: _col.primaryHover || '#1e40af',
+            accent: _col.accent || '#059669',
+            accentHover: _col.accentHover || '#047857',
+            bg: _col.background || '#ffffff',
+            text: _col.textMain || '#0f172a',
+            muted: _col.textMuted || '#64748b'
+          }
+        }
+      }
+    }
+  };
+</script>
+<style>
+* { box-sizing: border-box; }
+body { font-family: 'Plus Jakarta Sans', sans-serif; background: #fff; }
+[x-cloak] { display: none !important; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.smooth { transition: all 0.25s ease; }
+
+/* Reveal on scroll */
+.reveal { opacity:0; transform:translateY(24px); transition: opacity .7s ease, transform .7s ease; }
+.reveal.visible { opacity:1; transform:translateY(0); }
+
+/* Card hover */
+.card-lift { transition: all .3s ease; }
+.card-lift:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(30,58,138,.1); }
+
+/* Banner scroll */
+@keyframes bannerScroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+.banner-scroll { animation: bannerScroll 25s linear infinite; white-space: nowrap; }
+
+/* Hero gradient */
+.hero-gradient { background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 50%, #eff6ff 100%); }
+
+/* Shimmer en precio */
+@keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+.price-shimmer { background: linear-gradient(90deg, #1e3a8a 0%, #059669 50%, #1e3a8a 100%); background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+/* Live dot */
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+.live-dot { width:7px;height:7px;border-radius:50%;background:#059669;animation:pulse-dot 2s infinite;display:inline-block; }
+
+/* Mobile menu */
+.mobile-slide { transform: translateX(100%); transition: transform .3s ease; }
+.mobile-slide.open { transform: translateX(0); }
+
+/* Iconos cayendo */
+@keyframes iconFall {
+  0% { transform: translateY(-30px) rotate(0deg) translateX(0); opacity: 0; }
+  10% { opacity: 0.7; }
+  85% { opacity: 0.4; }
+  100% { transform: translateY(100vh) rotate(360deg) translateX(40px); opacity: 0; }
+}
+@keyframes iconFloat {
+  0% { transform: translateY(-20px) rotate(0deg) translateX(0); opacity: 0; }
+  15% { opacity: 0.6; }
+  85% { opacity: 0.3; }
+  100% { transform: translateY(100vh) rotate(-270deg) translateX(-30px); opacity: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .falling-icon { position:fixed; pointer-events:none; z-index:1; font-size:18px; animation: iconFall linear infinite; opacity:0.5; }
+  .falling-icon:nth-child(1)  { left:3%;  animation-duration:7s;  animation-delay:0s;   }
+  .falling-icon:nth-child(2)  { left:10%; animation-duration:10s; animation-delay:1.5s; animation-name:iconFloat; }
+  .falling-icon:nth-child(3)  { left:19%; animation-duration:8s;  animation-delay:3s;   }
+  .falling-icon:nth-child(4)  { left:28%; animation-duration:12s; animation-delay:0.5s; animation-name:iconFloat; }
+  .falling-icon:nth-child(5)  { left:37%; animation-duration:9s;  animation-delay:4s;   }
+  .falling-icon:nth-child(6)  { left:48%; animation-duration:11s; animation-delay:2s;   animation-name:iconFloat; }
+  .falling-icon:nth-child(7)  { left:57%; animation-duration:7.5s;animation-delay:5s;   }
+  .falling-icon:nth-child(8)  { left:66%; animation-duration:13s; animation-delay:1s;   animation-name:iconFloat; }
+  .falling-icon:nth-child(9)  { left:75%; animation-duration:8.5s;animation-delay:3.5s; }
+  .falling-icon:nth-child(10) { left:86%; animation-duration:10s; animation-delay:2.5s; animation-name:iconFloat; }
+  .falling-icon:nth-child(11) { left:93%; animation-duration:9.5s;animation-delay:0.8s; }
+}
+
+/* Triangulum badge */
+.tri-badge { font-size:10px; color:rgba(30,58,138,.3); letter-spacing:.15em; transition:color .3s; text-decoration:none; }
+.tri-badge:hover { color:rgba(30,58,138,.7); }
+
+/* Stars */
+.star-filled { color: #f59e0b; }
+</style>
+</head>
+<body class="text-dt-text antialiased" x-data="storeApp()" x-init="init()" x-cloak>
+
+<!-- Iconos cayendo -->
+<div class="falling-icon" aria-hidden="true">❄️</div>
+<div class="falling-icon" aria-hidden="true">⚡</div>
+<div class="falling-icon" aria-hidden="true">🔌</div>
+<div class="falling-icon" aria-hidden="true">❄️</div>
+<div class="falling-icon" aria-hidden="true">💡</div>
+<div class="falling-icon" aria-hidden="true">⚡</div>
+<div class="falling-icon" aria-hidden="true">🌡️</div>
+<div class="falling-icon" aria-hidden="true">🔌</div>
+<div class="falling-icon" aria-hidden="true">❄️</div>
+<div class="falling-icon" aria-hidden="true">💡</div>
+<div class="falling-icon" aria-hidden="true">⚡</div>
+
+<!-- Pantalla de carga -->
+<div x-show="cargando" class="fixed inset-0 z-[100] bg-white flex items-center justify-center">
+  <div class="text-center">
+    <div class="w-12 h-12 border-4 border-dt-primary/20 border-t-dt-primary rounded-full animate-spin mx-auto mb-4"></div>
+    <p class="font-bold text-dt-primary text-sm">Cargando DomusTech...</p>
+  </div>
+</div>
+
+<!-- Banner superior -->
+<div class="bg-dt-primary text-white py-2 overflow-hidden" aria-hidden="true">
+  <div class="banner-scroll inline-flex gap-16 text-xs font-semibold tracking-wider uppercase">
+    <span>✦ Envíos a todo Buenos Aires</span>
+    <span>✦ Garantía oficial en todos los productos</span>
+    <span>✦ Respondemos por WhatsApp al instante</span>
+    <span>✦ Cuotas sin interés disponibles</span>
+    <span>✦ Envíos a todo Buenos Aires</span>
+    <span>✦ Garantía oficial en todos los productos</span>
+    <span>✦ Respondemos por WhatsApp al instante</span>
+    <span>✦ Cuotas sin interés disponibles</span>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav class="sticky top-0 z-40 bg-white/90 backdrop-blur-lg border-b border-slate-100 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+    <a href="#inicio" class="flex items-center gap-2.5">
+      <template x-if="store.logoUrl">
+        <img :src="store.logoUrl" alt="logo" class="h-9 w-auto max-w-[130px] object-contain">
+      </template>
+      <template x-if="!store.logoUrl">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-xl bg-dt-primary grid place-items-center shadow-lg shadow-dt-primary/30">
+            <i data-lucide="home" class="w-4 h-4 text-white"></i>
+          </div>
+          <span class="font-black text-lg tracking-tight" x-text="store.storeName || 'DomusTech'"></span>
+        </div>
+      </template>
+    </a>
+
+    <div class="hidden md:flex items-center gap-8 text-sm font-semibold text-dt-muted">
+      <a href="#inicio" class="hover:text-dt-primary smooth">Inicio</a>
+      <a href="#catalogo" class="hover:text-dt-primary smooth">Catálogo</a>
+      <a href="#nosotros" class="hover:text-dt-primary smooth">Nosotros</a>
+      <a href="#contacto" class="hover:text-dt-primary smooth">Contacto</a>
+      <button @click="faqOpen = true" class="hover:text-dt-primary smooth">FAQ</button>
+      <button @click="adminOpen = true" class="opacity-20 hover:opacity-60 smooth" aria-label="Panel admin">
+        <i data-lucide="settings" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <div class="hidden sm:flex items-center gap-1.5 mr-2" aria-hidden="true">
+        <div class="live-dot"></div>
+        <span class="text-xs text-dt-muted/70 font-medium">En línea</span>
+      </div>
+      <button @click="isCartOpen = true" class="relative p-2.5 rounded-xl hover:bg-slate-50 smooth" aria-label="Ver carrito">
+        <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+        <span x-show="cart.length > 0" x-text="cartCount()" class="absolute -top-0.5 -right-0.5 bg-dt-accent text-white text-[10px] font-black w-5 h-5 grid place-items-center rounded-full"></span>
+      </button>
+      <button class="md:hidden p-2" @click="mobileMenu = true" aria-label="Abrir menú">
+        <i data-lucide="menu" class="w-5 h-5 text-dt-primary"></i>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- Mobile menu -->
+<div class="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm md:hidden" x-show="mobileMenu" @click="mobileMenu = false" x-transition.opacity></div>
+<div class="mobile-slide fixed right-0 top-0 h-full w-72 bg-white z-[80] flex flex-col p-8 shadow-2xl md:hidden" :class="mobileMenu ? 'open' : ''">
+  <div class="flex justify-between items-center mb-10">
+    <span class="font-black text-dt-primary text-lg" x-text="store.storeName || 'DomusTech'"></span>
+    <button @click="mobileMenu = false" aria-label="Cerrar"><i data-lucide="x" class="w-5 h-5 text-dt-muted"></i></button>
+  </div>
+  <nav class="flex flex-col gap-5 text-sm font-semibold text-dt-muted">
+    <a href="#inicio" @click="mobileMenu = false" class="hover:text-dt-primary smooth">Inicio</a>
+    <a href="#catalogo" @click="mobileMenu = false" class="hover:text-dt-primary smooth">Catálogo</a>
+    <a href="#nosotros" @click="mobileMenu = false" class="hover:text-dt-primary smooth">Nosotros</a>
+    <a href="#contacto" @click="mobileMenu = false" class="hover:text-dt-primary smooth">Contacto</a>
+    <button @click="faqOpen = true; mobileMenu = false" class="text-left hover:text-dt-primary smooth">FAQ</button>
+  </nav>
+  <a :href="`https://wa.me/${store.whatsappNumber}`" target="_blank" class="mt-auto inline-flex items-center justify-center gap-2 bg-dt-accent text-white px-6 py-4 rounded-xl font-bold text-sm">
+    <i data-lucide="message-circle" class="w-4 h-4"></i> Consultar por WhatsApp
+  </a>
+</div>
+
+<!-- HERO -->
+<section id="inicio" class="hero-gradient relative overflow-hidden">
+  <div class="absolute top-0 right-0 w-96 h-96 bg-dt-primary/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+  <div class="absolute bottom-0 left-0 w-72 h-72 bg-dt-accent/5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-24 grid md:grid-cols-2 gap-12 items-center relative z-10">
+    <div class="reveal" data-reveal>
+      <span class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-dt-accent bg-dt-accent/10 px-4 py-2 rounded-full mb-6">
+        <div class="live-dot"></div> Tienda online · Buenos Aires
+      </span>
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight mb-5" x-text="store.hero?.title || 'Todo para tu hogar, en un solo lugar'"></h1>
+      <p class="text-dt-muted text-lg leading-relaxed mb-8 max-w-lg" x-text="store.hero?.subtitle || 'Electrodomésticos, climatización y más. Comprá fácil y recibí en tu casa.'"></p>
+      <div class="flex flex-wrap gap-3">
+        <a href="#catalogo" class="inline-flex items-center gap-2 bg-dt-primary hover:bg-dt-primaryHover text-white px-7 py-4 rounded-xl font-bold shadow-xl shadow-dt-primary/25 smooth">
+          <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+          <span x-text="store.hero?.buttonText || 'Ver catálogo'"></span>
+        </a>
+        <a :href="`https://wa.me/${store.whatsappNumber}?text=Hola! Quiero consultar sobre un producto de DomusTech`" target="_blank" class="inline-flex items-center gap-2 border-2 border-dt-primary/20 hover:border-dt-primary text-dt-primary px-7 py-4 rounded-xl font-bold smooth">
+          <i data-lucide="message-circle" class="w-4 h-4"></i> Consultar
+        </a>
+      </div>
+      <!-- Stats -->
+      <div class="flex flex-wrap gap-8 mt-10 pt-8 border-t border-slate-200">
+        <div><p class="text-2xl font-black text-dt-primary">500+</p><p class="text-xs text-dt-muted font-semibold uppercase tracking-wider mt-0.5">Productos</p></div>
+        <div class="w-px bg-slate-200" aria-hidden="true"></div>
+        <div><p class="text-2xl font-black text-dt-primary">1000+</p><p class="text-xs text-dt-muted font-semibold uppercase tracking-wider mt-0.5">Clientes</p></div>
+        <div class="w-px bg-slate-200" aria-hidden="true"></div>
+        <div><p class="text-2xl font-black text-dt-primary">5★</p><p class="text-xs text-dt-muted font-semibold uppercase tracking-wider mt-0.5">Calificación</p></div>
+        <div class="w-px bg-slate-200" aria-hidden="true"></div>
+        <div><p class="text-2xl font-black text-dt-primary">&lt;1h</p><p class="text-xs text-dt-muted font-semibold uppercase tracking-wider mt-0.5">Respuesta WA</p></div>
+      </div>
+    </div>
+    <div class="relative reveal" data-reveal>
+      <div class="aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl shadow-dt-primary/15">
+        <img :src="store.hero?.bannerImage || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&auto=format&fit=crop&q=80'" alt="DomusTech productos" class="w-full h-full object-cover">
+      </div>
+      <!-- Floating badge -->
+      <div class="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-xl p-4 flex items-center gap-3 border border-slate-100">
+        <div class="w-10 h-10 bg-dt-accent/10 rounded-xl grid place-items-center">
+          <i data-lucide="shield-check" class="w-5 h-5 text-dt-accent"></i>
+        </div>
+        <div>
+          <p class="font-bold text-sm">Garantía oficial</p>
+          <p class="text-xs text-dt-muted">En todos los productos</p>
+        </div>
+      </div>
+      <div class="absolute -top-4 -right-4 bg-white rounded-2xl shadow-xl p-4 flex items-center gap-3 border border-slate-100">
+        <div class="w-10 h-10 bg-dt-primary/10 rounded-xl grid place-items-center">
+          <i data-lucide="truck" class="w-5 h-5 text-dt-primary"></i>
+        </div>
+        <div>
+          <p class="font-bold text-sm">Envío rápido</p>
+          <p class="text-xs text-dt-muted">A todo Buenos Aires</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Beneficios -->
+  <div class="border-t border-slate-200/80 bg-white/60 backdrop-blur-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-5 grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-dt-primary/10 rounded-xl grid place-items-center flex-shrink-0"><i data-lucide="truck" class="w-5 h-5 text-dt-primary"></i></div>
+        <div><p class="font-bold text-sm">Envíos</p><p class="text-xs text-dt-muted">A coordinar por WhatsApp</p></div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-dt-accent/10 rounded-xl grid place-items-center flex-shrink-0"><i data-lucide="credit-card" class="w-5 h-5 text-dt-accent"></i></div>
+        <div><p class="font-bold text-sm">Pago fácil</p><p class="text-xs text-dt-muted">Transferencia o efectivo</p></div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-dt-primary/10 rounded-xl grid place-items-center flex-shrink-0"><i data-lucide="shield-check" class="w-5 h-5 text-dt-primary"></i></div>
+        <div><p class="font-bold text-sm">Compra segura</p><p class="text-xs text-dt-muted">Atención personalizada</p></div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-dt-accent/10 rounded-xl grid place-items-center flex-shrink-0"><i data-lucide="message-circle" class="w-5 h-5 text-dt-accent"></i></div>
+        <div><p class="font-bold text-sm">WhatsApp</p><p class="text-xs text-dt-muted">Respondemos rápido</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CATÁLOGO -->
+<section id="catalogo" class="max-w-7xl mx-auto px-4 sm:px-6 py-16">
+  <div class="text-center mb-12 reveal" data-reveal>
+    <span class="text-xs font-bold uppercase tracking-widest text-dt-accent">Nuestra tienda</span>
+    <h2 class="text-3xl sm:text-4xl font-black mt-2 mb-3">Explorá el catálogo</h2>
+    <p class="text-dt-muted max-w-xl mx-auto">Elegí lo que te guste, agregalo al carrito y finalizá tu pedido por WhatsApp.</p>
+  </div>
+
+  <!-- Buscador -->
+  <div class="relative max-w-xl mx-auto mb-6 reveal" data-reveal>
+    <i data-lucide="search" class="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-dt-muted"></i>
+    <input type="text" x-model="searchQuery" placeholder="Buscar productos..."
+           class="w-full bg-slate-50 border border-slate-200 focus:border-dt-primary focus:ring-2 focus:ring-dt-primary/20 rounded-xl pl-12 pr-4 py-3.5 outline-none smooth">
+  </div>
+
+  <!-- Filtros -->
+  <div class="flex flex-wrap gap-2 justify-center mb-10 reveal" data-reveal>
+    <button @click="selectedCategory = 'all'" :class="selectedCategory === 'all' ? 'bg-dt-primary text-white shadow-lg shadow-dt-primary/25' : 'bg-slate-100 text-dt-muted hover:bg-slate-200'" class="px-5 py-2 rounded-xl text-sm font-bold smooth">Todos</button>
+    <template x-for="cat in categories" :key="cat">
+      <button @click="selectedCategory = cat" :class="selectedCategory === cat ? 'bg-dt-primary text-white shadow-lg shadow-dt-primary/25' : 'bg-slate-100 text-dt-muted hover:bg-slate-200'" class="px-5 py-2 rounded-xl text-sm font-bold smooth" x-text="cat"></button>
+    </template>
+  </div>
+
+  <!-- Grid productos -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <template x-for="product in filteredProducts()" :key="product.id">
+      <div class="group bg-white border border-slate-100 rounded-2xl overflow-hidden card-lift cursor-pointer">
+        <div class="relative aspect-square overflow-hidden bg-slate-50" @click="openDetail(product)">
+          <img :src="product.image" :alt="product.name" class="w-full h-full object-cover group-hover:scale-105 smooth">
+          <span x-show="product.tag" x-text="product.tag"
+                :class="product.tag === 'Sin Stock' ? 'bg-slate-600' : product.tag === 'Oferta' ? 'bg-red-500' : product.tag === 'Destacado' ? 'bg-dt-primary' : 'bg-dt-accent'"
+                class="absolute top-3 left-3 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-sm"></span>
+          <div class="absolute inset-0 bg-dt-primary/0 group-hover:bg-dt-primary/5 smooth flex items-center justify-center">
+            <div class="opacity-0 group-hover:opacity-100 smooth bg-white rounded-full p-3 shadow-lg">
+              <i data-lucide="zoom-in" class="w-5 h-5 text-dt-primary"></i>
+            </div>
+          </div>
+        </div>
+        <div class="p-4">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-dt-muted" x-text="product.category"></span>
+          <h3 class="font-bold mt-1 leading-snug line-clamp-2 group-hover:text-dt-primary smooth text-sm" x-text="product.name"></h3>
+          <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
+            <span class="text-lg font-black price-shimmer" x-text="formatPrice(product.price)"></span>
+            <button x-show="product.inStock" @click="addToCart(product)"
+                    class="inline-flex items-center gap-1.5 bg-dt-accent hover:bg-dt-accentHover text-white px-3 py-2 rounded-xl text-xs font-bold smooth hover:scale-105 active:scale-95 shadow-md shadow-dt-accent/25">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> Agregar
+            </button>
+            <span x-show="!product.inStock" class="text-xs font-bold text-dt-muted bg-slate-100 px-3 py-1.5 rounded-xl">Sin stock</span>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <div x-show="filteredProducts().length === 0" class="text-center py-16">
+    <i data-lucide="package-x" class="w-12 h-12 mx-auto text-dt-muted mb-3"></i>
+    <p class="text-dt-muted font-medium">No encontramos productos con esos filtros.</p>
+  </div>
+</section>
+
+<!-- NOSOTROS -->
+<section id="nosotros" class="bg-slate-50 py-16">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6">
+    <div class="grid lg:grid-cols-2 gap-14 items-center">
+      <div class="reveal" data-reveal>
+        <span class="text-xs font-bold uppercase tracking-widest text-dt-accent">Quiénes somos</span>
+        <h2 class="text-3xl sm:text-4xl font-black mt-3 mb-5">Tu hogar merece lo mejor</h2>
+        <p class="text-dt-muted leading-relaxed mb-5">DomusTech nació con una misión simple: acercar a cada hogar los mejores electrodomésticos al mejor precio, con la atención personalizada que merecés.</p>
+        <p class="text-dt-muted leading-relaxed mb-8">Trabajamos con las marcas líderes del mercado y brindamos garantía oficial en todos nuestros productos. Cada compra es acompañada de asesoramiento real, no un chatbot.</p>
+        <div class="flex flex-wrap gap-3">
+          <a :href="`https://wa.me/${store.whatsappNumber}?text=Hola! Quiero saber más sobre DomusTech`" target="_blank"
+             class="inline-flex items-center gap-2 bg-dt-primary hover:bg-dt-primaryHover text-white px-6 py-3 rounded-xl font-bold smooth shadow-lg shadow-dt-primary/20">
+            <i data-lucide="message-circle" class="w-4 h-4"></i> Hablar con nosotros
+          </a>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4 reveal" data-reveal>
+        <div class="bg-white rounded-2xl p-6 text-center shadow-sm border border-slate-100 card-lift">
+          <div class="w-12 h-12 bg-dt-primary/10 rounded-xl grid place-items-center mx-auto mb-3"><i data-lucide="package" class="w-6 h-6 text-dt-primary"></i></div>
+          <p class="text-3xl font-black text-dt-primary">500+</p>
+          <p class="text-xs text-dt-muted font-semibold uppercase tracking-wider mt-1">Productos</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 text-center shadow-sm border border-slate-100 card-lift">
+          <div class="w-12 h-12 bg-dt-accent/10 rounded-xl grid place-items-center mx-auto mb-3"><i data-lucide="users" class="w-6 h-6 text-dt-accent"></i></div>
+          <p class="text-3xl font-black text-dt-accent">1000+</p>
+          <p class="text-xs text-dt-muted font-semibold uppercase tracking-wider mt-1">Clientes</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 text-center shadow-sm border border-slate-100 card-lift">
+          <div class="w-12 h-12 bg-dt-primary/10 rounded-xl grid place-items-center mx-auto mb-3"><i data-lucide="shield-check" class="w-6 h-6 text-dt-primary"></i></div>
+          <p class="text-3xl font-black text-dt-primary">100%</p>
+          <p class="text-xs text-dt-muted font-semibold uppercase tracking-wider mt-1">Garantía oficial</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 text-center shadow-sm border border-slate-100 card-lift">
+          <div class="w-12 h-12 bg-dt-accent/10 rounded-xl grid place-items-center mx-auto mb-3"><i data-lucide="star" class="w-6 h-6 text-dt-accent"></i></div>
+          <p class="text-3xl font-black text-dt-accent">5★</p>
+          <p class="text-xs text-dt-muted font-semibold uppercase tracking-wider mt-1">Calificación</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIOS -->
+<section class="py-16 bg-white">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6">
+    <div class="text-center mb-12 reveal" data-reveal>
+      <span class="text-xs font-bold uppercase tracking-widest text-dt-accent">Opiniones</span>
+      <h2 class="text-3xl sm:text-4xl font-black mt-2">Lo que dicen nuestros clientes</h2>
+    </div>
+    <div class="grid sm:grid-cols-3 gap-6">
+      <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100 card-lift reveal" data-reveal>
+        <div class="flex gap-1 mb-4" aria-label="5 estrellas"><template x-for="i in 5"><span class="star-filled text-sm" aria-hidden="true">★</span></template></div>
+        <p class="text-dt-muted leading-relaxed mb-4 text-sm">"Compré el aire acondicionado y en dos días lo tenía en casa. La instalación fue perfecta y el precio mucho mejor que en otros lados."</p>
+        <p class="font-bold text-sm">Martina G. — Palermo</p>
+      </div>
+      <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100 card-lift reveal" data-reveal>
+        <div class="flex gap-1 mb-4" aria-label="5 estrellas"><template x-for="i in 5"><span class="star-filled text-sm" aria-hidden="true">★</span></template></div>
+        <p class="text-dt-muted leading-relaxed mb-4 text-sm">"Atención excelente por WhatsApp. Me asesoraron bien, pedí la heladera y llegó en tiempo y forma. Muy recomendable."</p>
+        <p class="font-bold text-sm">Carlos M. — Lanús</p>
+      </div>
+      <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100 card-lift reveal" data-reveal>
+        <div class="flex gap-1 mb-4" aria-label="5 estrellas"><template x-for="i in 5"><span class="star-filled text-sm" aria-hidden="true">★</span></template></div>
+        <p class="text-dt-muted leading-relaxed mb-4 text-sm">"Siempre compro acá. Los precios son buenos, los productos originales y el trato es muy amable. No voy a ningún otro lado."</p>
+        <p class="font-bold text-sm">Ana R. — Lomas de Zamora</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="contacto" class="bg-dt-text text-white/80">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-14 grid sm:grid-cols-3 gap-10">
+    <div>
+      <h3 class="font-black text-white text-xl mb-2" x-text="store.storeName || 'DomusTech'"></h3>
+      <p class="text-sm mb-4" x-text="store.storeTagline || 'Todo para tu hogar, en un solo lugar'"></p>
+      <a :href="`https://wa.me/${store.whatsappNumber}?text=Hola! Quiero consultar sobre un producto`" target="_blank"
+         class="inline-flex items-center gap-2 bg-dt-accent hover:bg-dt-accentHover text-white px-5 py-2.5 rounded-xl font-bold text-sm smooth shadow-lg">
+        <i data-lucide="message-circle" class="w-4 h-4"></i> Escribinos
+      </a>
+    </div>
+    <div>
+      <h4 class="font-bold text-white text-sm uppercase tracking-wider mb-4">Navegación</h4>
+      <ul class="space-y-2 text-sm">
+        <li><a href="#inicio" class="hover:text-white smooth">Inicio</a></li>
+        <li><a href="#catalogo" class="hover:text-white smooth">Catálogo</a></li>
+        <li><a href="#nosotros" class="hover:text-white smooth">Nosotros</a></li>
+        <li><button @click="faqOpen = true" class="hover:text-white smooth">Preguntas frecuentes</button></li>
+      </ul>
+    </div>
+    <div>
+      <h4 class="font-bold text-white text-sm uppercase tracking-wider mb-4">Contacto</h4>
+      <ul class="space-y-2.5 text-sm">
+        <li class="flex items-center gap-2"><i data-lucide="message-circle" class="w-4 h-4 text-dt-accent flex-shrink-0"></i><a :href="`https://wa.me/${store.whatsappNumber}`" target="_blank" class="hover:text-white smooth">WhatsApp</a></li>
+        <li class="flex items-center gap-2"><i data-lucide="map-pin" class="w-4 h-4 text-dt-accent flex-shrink-0"></i><span x-text="store.address || 'Buenos Aires, Argentina'"></span></li>
+        <li class="flex items-center gap-2"><i data-lucide="clock" class="w-4 h-4 text-dt-accent flex-shrink-0"></i><span x-text="store.workingHours || 'Lun a Vie 10:00 a 19:00 hs'"></span></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-white/10 py-5">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 flex flex-wrap items-center justify-between gap-3">
+      <span class="text-xs text-white/40" x-text="`© ${new Date().getFullYear()} ${store.storeName || 'DomusTech'}. Todos los derechos reservados.`"></span>
+      <div class="flex items-center gap-4">
+        <button @click="adminOpen = true" class="text-white/20 hover:text-white/50 smooth text-xs flex items-center gap-1.5">
+          <i data-lucide="settings" class="w-3.5 h-3.5"></i> Panel
+        </button>
+        <!-- GANCHO TRIANGULUM — se activa cuando conecten la tienda -->
+        <a href="#" class="tri-badge" title="Powered by Triangulum Sync">✦ Powered by Triangulum Sync</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- Botón flotante WA -->
+<a :href="`https://wa.me/${store.whatsappNumber}?text=Hola! Quiero consultar sobre un producto de DomusTech`" target="_blank"
+   class="fixed bottom-5 right-5 z-30 bg-dt-accent hover:bg-dt-accentHover text-white p-4 rounded-full shadow-2xl shadow-dt-accent/30 smooth hover:scale-110" aria-label="Consultar por WhatsApp">
+  <i data-lucide="message-circle" class="w-6 h-6"></i>
+</a>
+
+<!-- MODAL DETALLE PRODUCTO -->
+<div x-show="selectedProduct" x-transition.opacity class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm grid place-items-center p-4" @click.self="selectedProduct = null" @keydown.escape.window="selectedProduct = null">
+  <div x-show="selectedProduct" x-transition class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl" @click.stop>
+    <template x-if="selectedProduct">
+      <div>
+        <div class="relative aspect-video bg-slate-50">
+          <img :src="selectedProduct.image" :alt="selectedProduct.name" class="w-full h-full object-cover">
+          <button @click="selectedProduct = null" class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow hover:scale-105 smooth" aria-label="Cerrar">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+          <span x-show="selectedProduct.tag" x-text="selectedProduct.tag"
+                :class="selectedProduct.tag === 'Sin Stock' ? 'bg-slate-600' : 'bg-dt-accent'"
+                class="absolute top-4 left-4 text-white text-xs font-bold px-3 py-1 rounded-full"></span>
+        </div>
+        <div class="p-6 sm:p-8">
+          <span class="text-xs font-bold uppercase tracking-wider text-dt-accent" x-text="selectedProduct.category"></span>
+          <h3 class="text-2xl font-black mt-1 mb-3" x-text="selectedProduct.name"></h3>
+          <p class="text-dt-muted leading-relaxed mb-6" x-text="selectedProduct.description"></p>
+          <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl mb-5">
+            <i data-lucide="shield-check" class="w-5 h-5 text-dt-accent flex-shrink-0"></i>
+            <p class="text-sm text-dt-muted">Garantía oficial · Envío coordinado por WhatsApp · Atención personalizada</p>
+          </div>
+          <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+            <span class="text-3xl font-black price-shimmer" x-text="formatPrice(selectedProduct.price)"></span>
+            <button x-show="selectedProduct.inStock" @click="addToCart(selectedProduct); selectedProduct = null"
+                    class="inline-flex items-center gap-2 bg-dt-accent hover:bg-dt-accentHover text-white px-7 py-3.5 rounded-xl font-bold shadow-lg smooth">
+              <i data-lucide="shopping-cart" class="w-4 h-4"></i> Agregar al carrito
+            </button>
+            <span x-show="!selectedProduct.inStock" class="font-bold text-dt-muted bg-slate-100 px-5 py-3 rounded-xl">Sin stock</span>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- CARRITO -->
+<div x-show="isCartOpen" x-transition.opacity class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" @click.self="isCartOpen = false">
+  <div x-show="isCartOpen"
+       x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+       x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+       class="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl flex flex-col">
+    <div class="flex items-center justify-between p-5 border-b border-slate-100">
+      <h3 class="font-black text-lg flex items-center gap-2"><i data-lucide="shopping-cart" class="w-5 h-5 text-dt-primary"></i> Tu carrito</h3>
+      <button @click="isCartOpen = false" class="p-2 rounded-xl hover:bg-slate-50 smooth" aria-label="Cerrar"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div x-show="cart.length === 0" class="flex-1 grid place-items-center p-8 text-center">
+      <div>
+        <div class="w-16 h-16 bg-slate-100 rounded-2xl grid place-items-center mx-auto mb-4"><i data-lucide="shopping-cart" class="w-8 h-8 text-dt-muted/50"></i></div>
+        <p class="font-bold text-lg mb-1">Tu carrito está vacío</p>
+        <p class="text-dt-muted text-sm mb-5">Agregá productos para empezar tu pedido.</p>
+        <button @click="isCartOpen = false" class="inline-flex items-center gap-2 bg-dt-primary hover:bg-dt-primaryHover text-white px-5 py-3 rounded-xl font-bold smooth">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i> Ver catálogo
+        </button>
+      </div>
+    </div>
+    <div x-show="cart.length > 0" class="flex-1 overflow-y-auto no-scrollbar p-5 space-y-4">
+      <template x-for="item in cart" :key="item.product.id">
+        <div class="flex gap-3 items-center bg-slate-50 rounded-2xl p-3">
+          <img :src="item.product.image" class="w-16 h-16 rounded-xl object-cover">
+          <div class="flex-1 min-w-0">
+            <h4 class="font-bold text-sm leading-snug line-clamp-1" x-text="item.product.name"></h4>
+            <span class="text-dt-primary font-black text-sm" x-text="formatPrice(item.product.price)"></span>
+            <div class="flex items-center gap-2 mt-1.5">
+              <button @click="changeQty(item, -1)" class="w-7 h-7 grid place-items-center rounded-lg bg-white border border-slate-200 hover:border-dt-primary smooth"><i data-lucide="minus" class="w-3 h-3"></i></button>
+              <span class="w-6 text-center font-black text-sm" x-text="item.quantity"></span>
+              <button @click="changeQty(item, 1)" class="w-7 h-7 grid place-items-center rounded-lg bg-white border border-slate-200 hover:border-dt-primary smooth"><i data-lucide="plus" class="w-3 h-3"></i></button>
+              <button @click="removeFromCart(item)" class="ml-auto p-1.5 text-red-400 hover:bg-red-50 rounded-lg smooth"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+    <div x-show="cart.length > 0" class="border-t border-slate-100 p-5 space-y-4 bg-slate-50/50">
+      <div class="space-y-3">
+        <input type="text" x-model="checkoutForm.name" placeholder="Tu nombre *" class="w-full bg-white border border-slate-200 focus:border-dt-primary rounded-xl px-4 py-3 text-sm outline-none smooth">
+        <input type="text" x-model="checkoutForm.address" placeholder="Dirección (o aclará si retirás) *" class="w-full bg-white border border-slate-200 focus:border-dt-primary rounded-xl px-4 py-3 text-sm outline-none smooth">
+        <input type="text" x-model="checkoutForm.notes" placeholder="Notas (opcional)" class="w-full bg-white border border-slate-200 focus:border-dt-primary rounded-xl px-4 py-3 text-sm outline-none smooth">
+        <div class="grid grid-cols-2 gap-2">
+          <button @click="checkoutForm.deliveryMethod = 'shipping'" :class="checkoutForm.deliveryMethod === 'shipping' ? 'bg-dt-primary text-white shadow-lg shadow-dt-primary/20' : 'bg-white border border-slate-200 text-dt-muted'" class="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold smooth"><i data-lucide="truck" class="w-4 h-4"></i> Envío</button>
+          <button @click="checkoutForm.deliveryMethod = 'pickup'" :class="checkoutForm.deliveryMethod === 'pickup' ? 'bg-dt-primary text-white shadow-lg shadow-dt-primary/20' : 'bg-white border border-slate-200 text-dt-muted'" class="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold smooth"><i data-lucide="map-pin" class="w-4 h-4"></i> Retiro</button>
+        </div>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="font-bold">Total</span>
+        <span class="font-black text-xl price-shimmer" x-text="formatPrice(getCartTotal())"></span>
+      </div>
+      <button @click="checkoutWhatsApp()" class="w-full inline-flex items-center justify-center gap-2.5 bg-dt-accent hover:bg-dt-accentHover text-white py-4 rounded-xl font-black shadow-lg shadow-dt-accent/20 smooth">
+        <i data-lucide="message-circle" class="w-5 h-5"></i> Finalizar por WhatsApp
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- FAQ -->
+<div x-show="faqOpen" x-transition.opacity class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm grid place-items-center p-4" @click.self="faqOpen = false" @keydown.escape.window="faqOpen = false">
+  <div x-show="faqOpen" x-transition class="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl">
+    <div class="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white z-10">
+      <h3 class="font-black text-lg">Preguntas frecuentes</h3>
+      <button @click="faqOpen = false" class="p-2 rounded-xl hover:bg-slate-50 smooth" aria-label="Cerrar"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div class="p-5 space-y-3">
+      <template x-for="faq in store.faqs || []" :key="faq.id">
+        <div class="border border-slate-100 rounded-2xl overflow-hidden">
+          <button @click="openFaq = (openFaq === faq.id ? null : faq.id)" class="w-full flex items-center justify-between p-4 text-left font-bold text-sm hover:bg-slate-50 smooth">
+            <span x-text="faq.question"></span>
+            <i data-lucide="chevron-down" class="w-4 h-4 smooth flex-shrink-0" :class="openFaq === faq.id ? 'rotate-180' : ''"></i>
+          </button>
+          <div x-show="openFaq === faq.id">
+            <p class="px-4 pb-4 text-sm text-dt-muted leading-relaxed" x-text="faq.answer"></p>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL ADMIN -->
+<div x-show="adminOpen" x-transition.opacity class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" @click.self="adminOpen = false">
+  <div x-show="adminOpen" x-transition class="absolute right-0 top-0 h-full w-full max-w-2xl bg-white shadow-2xl flex flex-col">
+    <div class="flex items-center justify-between p-5 border-b border-slate-100">
+      <h3 class="font-black text-lg flex items-center gap-2"><i data-lucide="settings" class="w-5 h-5 text-dt-primary"></i> Panel DomusTech</h3>
+      <div class="flex items-center gap-2">
+        <button x-show="isLogged" @click="logout()" class="text-sm font-semibold text-dt-muted hover:text-red-500 flex items-center gap-1.5 smooth"><i data-lucide="log-out" class="w-4 h-4"></i> Salir</button>
+        <button @click="adminOpen = false" class="p-2 rounded-xl hover:bg-slate-50 smooth" aria-label="Cerrar"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+    </div>
+    <div x-show="!isLogged" class="flex-1 grid place-items-center p-8">
+      <div class="w-full max-w-sm text-center">
+        <div class="w-16 h-16 mx-auto bg-dt-primary/10 grid place-items-center rounded-2xl mb-4"><i data-lucide="lock" class="w-7 h-7 text-dt-primary"></i></div>
+        <h4 class="font-black text-xl mb-1">Acceso al panel</h4>
+        <p class="text-dt-muted text-sm mb-5">Ingresá la clave para administrar la tienda.</p>
+        <input type="password" x-model="passwordInput" @keydown.enter="login()" placeholder="Clave de acceso" class="w-full bg-slate-50 border border-slate-200 focus:border-dt-primary rounded-xl px-4 py-3 text-center outline-none smooth">
+        <p x-show="loginError" class="text-red-500 text-sm mt-2 font-medium" role="alert">Clave incorrecta.</p>
+        <button @click="login()" class="w-full mt-4 bg-dt-primary hover:bg-dt-primaryHover text-white py-3.5 rounded-xl font-bold smooth shadow-lg shadow-dt-primary/20">Entrar</button>
+      </div>
+    </div>
+    <div x-show="isLogged" class="flex-1 overflow-y-auto no-scrollbar">
+      <div class="flex border-b border-slate-100 px-5 sticky top-0 bg-white z-10 overflow-x-auto no-scrollbar">
+        <button @click="adminTab = 'products'" :class="adminTab === 'products' ? 'border-dt-primary text-dt-primary' : 'border-transparent text-dt-muted'" class="px-4 py-3 font-bold text-sm border-b-2 smooth whitespace-nowrap">Productos</button>
+        <button @click="adminTab = 'store'" :class="adminTab === 'store' ? 'border-dt-primary text-dt-primary' : 'border-transparent text-dt-muted'" class="px-4 py-3 font-bold text-sm border-b-2 smooth whitespace-nowrap">Tienda</button>
+        <button @click="adminTab = 'colors'" :class="adminTab === 'colors' ? 'border-dt-primary text-dt-primary' : 'border-transparent text-dt-muted'" class="px-4 py-3 font-bold text-sm border-b-2 smooth whitespace-nowrap">Colores</button>
+        <button @click="adminTab = 'security'" :class="adminTab === 'security' ? 'border-dt-primary text-dt-primary' : 'border-transparent text-dt-muted'" class="px-4 py-3 font-bold text-sm border-b-2 smooth whitespace-nowrap">Clave</button>
+        <button @click="adminTab = 'whatsapp'" :class="adminTab === 'whatsapp' ? 'border-dt-primary text-dt-primary' : 'border-transparent text-dt-muted'" class="px-4 py-3 font-bold text-sm border-b-2 smooth whitespace-nowrap">WhatsApp IA</button>
+      </div>
+
+      <!-- PRODUCTOS -->
+      <div x-show="adminTab === 'products'" class="p-5 space-y-4">
+        <button @click="newProduct()" class="w-full flex items-center justify-center gap-2 bg-dt-accent hover:bg-dt-accentHover text-white py-3 rounded-xl font-bold smooth shadow-lg shadow-dt-accent/20"><i data-lucide="plus" class="w-4 h-4"></i> Agregar producto</button>
+        <div x-show="editingProduct" class="border-2 border-dt-primary/20 rounded-2xl p-4 space-y-3 bg-dt-primary/[0.02]">
+          <h4 class="font-bold text-sm" x-text="editingProduct && editingProduct.id ? 'Editar producto' : 'Nuevo producto'"></h4>
+          <template x-if="editingProduct">
+            <div class="space-y-3">
+              <input type="text" x-model="editingProduct.name" placeholder="Nombre del producto" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth">
+              <textarea x-model="editingProduct.description" placeholder="Descripción" rows="3" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth"></textarea>
+              <div class="grid grid-cols-2 gap-3">
+                <input type="number" x-model.number="editingProduct.price" placeholder="Precio" class="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth">
+                <input type="text" x-model="editingProduct.category" placeholder="Categoría" class="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth">
+              </div>
+              <input type="text" x-model="editingProduct.tag" placeholder="Etiqueta (ej: Nuevo, Oferta) - opcional" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth">
+              <div>
+                <label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Foto del producto</label>
+                <div class="flex items-center gap-3 mt-1.5">
+                  <img x-show="editingProduct.image" :src="editingProduct.image" class="w-16 h-16 rounded-xl object-cover bg-slate-100">
+                  <label class="flex-1 cursor-pointer bg-white border border-dashed border-slate-300 hover:border-dt-primary rounded-xl px-3 py-3 text-sm text-center text-dt-muted smooth">
+                    <i data-lucide="upload" class="w-4 h-4 inline"></i> Subir foto
+                    <input type="file" accept="image/*" class="hidden" @change="handleProductImage($event)">
+                  </label>
+                </div>
+              </div>
+              <label class="flex items-center gap-2 text-sm font-semibold cursor-pointer"><input type="checkbox" x-model="editingProduct.inStock" class="w-4 h-4 rounded accent-dt-primary"> En stock</label>
+              <div class="flex gap-2 pt-1">
+                <button @click="saveProduct()" class="flex-1 bg-dt-primary hover:bg-dt-primaryHover text-white py-2.5 rounded-xl font-bold text-sm smooth">Guardar</button>
+                <button @click="editingProduct = null" class="px-4 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-sm smooth">Cancelar</button>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div class="space-y-2">
+          <template x-for="p in products" :key="p.id">
+            <div class="flex items-center gap-3 border border-slate-100 rounded-xl p-3 hover:border-dt-primary/30 smooth">
+              <img :src="p.image" class="w-12 h-12 rounded-lg object-cover bg-slate-100 flex-shrink-0">
+              <div class="flex-1 min-w-0">
+                <h5 class="font-bold text-sm line-clamp-1" x-text="p.name"></h5>
+                <span class="text-xs text-dt-muted" x-text="formatPrice(p.price) + ' · ' + p.category"></span>
+              </div>
+              <span x-show="!p.inStock" class="text-[10px] font-bold text-dt-muted bg-slate-100 px-2 py-1 rounded-lg">Sin stock</span>
+              <button @click="editProduct(p)" class="p-2 hover:bg-slate-100 rounded-lg smooth"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+              <button @click="deleteProduct(p)" class="p-2 text-red-400 hover:bg-red-50 rounded-lg smooth"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- TIENDA -->
+      <div x-show="adminTab === 'store'" class="p-5 space-y-3">
+        <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Nombre de la tienda</label><input type="text" x-model="adminData.storeName" class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth"></div>
+        <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Eslogan</label><input type="text" x-model="adminData.storeTagline" class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth"></div>
+        <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">WhatsApp (549...)</label><input type="text" x-model="adminData.whatsappNumber" class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth"></div>
+        <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Dirección</label><input type="text" x-model="adminData.address" class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth"></div>
+        <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Horarios</label><input type="text" x-model="adminData.workingHours" class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth"></div>
+        <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Título del inicio</label><input type="text" x-model="adminData.heroTitle" class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth"></div>
+        <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Subtítulo del inicio</label><textarea x-model="adminData.heroSubtitle" rows="2" class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth"></textarea></div>
+        <div>
+          <label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Logo (opcional)</label>
+          <div class="flex items-center gap-3 mt-1.5">
+            <img x-show="adminData.logoUrl" :src="adminData.logoUrl" class="w-12 h-12 rounded-xl object-cover bg-slate-100">
+            <label class="flex-1 cursor-pointer bg-slate-50 border border-dashed border-slate-300 hover:border-dt-primary rounded-xl px-3 py-3 text-sm text-center text-dt-muted smooth"><i data-lucide="upload" class="w-4 h-4 inline"></i> Subir logo<input type="file" accept="image/*" class="hidden" @change="handleLogoImage($event)"></label>
+          </div>
+        </div>
+        <button @click="saveStoreData()" class="w-full bg-dt-primary hover:bg-dt-primaryHover text-white py-3 rounded-xl font-bold smooth shadow-lg shadow-dt-primary/20">Guardar cambios</button>
+      </div>
+
+      <!-- COLORES -->
+      <div x-show="adminTab === 'colors'" class="p-5 space-y-4">
+        <p class="text-sm text-dt-muted">Tocá cada color para cambiarlo. Los cambios se ven al guardar y recargar.</p>
+        <template x-for="(label, key) in colorLabels" :key="key">
+          <div class="flex items-center justify-between border border-slate-100 rounded-xl p-3">
+            <span class="font-semibold text-sm" x-text="label"></span>
+            <div class="flex items-center gap-2">
+              <input type="color" x-model="adminData.colors[key]" class="w-10 h-10 rounded-lg border border-slate-200 cursor-pointer">
+              <span class="text-xs font-mono text-dt-muted" x-text="adminData.colors[key]"></span>
+            </div>
+          </div>
+        </template>
+        <button @click="saveStoreData()" class="w-full bg-dt-primary hover:bg-dt-primaryHover text-white py-3 rounded-xl font-bold smooth">Guardar colores</button>
+      </div>
+
+      <!-- CLAVE -->
+      <div x-show="adminTab === 'security'" class="p-5 space-y-3">
+        <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Nueva clave</label><input type="password" x-model="newPassword" placeholder="Nueva clave" class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth"></div>
+        <button @click="changePassword()" class="w-full bg-dt-primary hover:bg-dt-primaryHover text-white py-3 rounded-xl font-bold smooth">Cambiar clave</button>
+      </div>
+
+      <!-- WHATSAPP IA -->
+      <div x-show="adminTab === 'whatsapp'" class="p-5 space-y-4">
+        <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 leading-relaxed">
+          ✦ Completá la info de tu negocio y Claude genera los textos listos para copiar en WhatsApp Business. En español e inglés automático.
+        </div>
+        <div class="space-y-3">
+          <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Productos y precios destacados</label>
+            <textarea x-model="waConfig.servicios" rows="4" placeholder="Ej: Aire Split 3000 frigorías $850.000, Heladera No Frost 300L $920.000, Microondas 23L $135.000..." class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth placeholder:text-slate-400"></textarea></div>
+          <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Horarios de atención</label>
+            <input type="text" x-model="waConfig.horarios" placeholder="Ej: Lunes a viernes 10 a 19hs, Sábados 10 a 14hs" class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth placeholder:text-slate-400"></div>
+          <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Zona de entrega</label>
+            <input type="text" x-model="waConfig.zona" placeholder="Ej: CABA y Gran Buenos Aires" class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth placeholder:text-slate-400"></div>
+          <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Tiempo de entrega</label>
+            <input type="text" x-model="waConfig.tiempoEntrega" placeholder="Ej: Envío en 24-48hs hábiles. Retiro disponible." class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth placeholder:text-slate-400"></div>
+          <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Formas de pago</label>
+            <input type="text" x-model="waConfig.pagos" placeholder="Ej: Efectivo, transferencia, MercadoPago. Cuotas sin interés." class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth placeholder:text-slate-400"></div>
+          <div><label class="text-xs font-bold text-dt-muted uppercase tracking-wider">Algo especial a destacar</label>
+            <textarea x-model="waConfig.extra" rows="2" placeholder="Ej: Garantía oficial en todos los productos. Asesoramiento técnico gratuito." class="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-dt-primary smooth placeholder:text-slate-400"></textarea></div>
+        </div>
+        <button @click="generarRespuestasWA()" :disabled="waGenerando" class="w-full bg-dt-primary hover:bg-dt-primaryHover disabled:opacity-50 text-white py-3.5 rounded-xl font-bold text-sm smooth flex items-center justify-center gap-2 shadow-lg shadow-dt-primary/20">
+          <template x-if="!waGenerando"><span class="flex items-center gap-2"><i data-lucide="sparkles" class="w-4 h-4"></i> Generar textos con IA</span></template>
+          <template x-if="waGenerando"><span>Generando...</span></template>
+        </button>
+        <template x-if="waResultados">
+          <div class="space-y-3">
+            <p class="text-xs font-bold text-dt-muted uppercase tracking-wider">Textos listos para WhatsApp Business</p>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] text-dt-primary font-bold uppercase tracking-widest">Bienvenida — Español</span>
+                <button @click="copiarTexto(waResultados.bienvenidaES)" class="text-[10px] text-dt-muted hover:text-dt-primary smooth flex items-center gap-1"><i data-lucide="copy" class="w-3 h-3"></i> Copiar</button>
+              </div>
+              <p class="text-xs text-dt-text leading-relaxed whitespace-pre-wrap" x-text="waResultados.bienvenidaES"></p>
+            </div>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] text-dt-primary font-bold uppercase tracking-widest">Welcome — English</span>
+                <button @click="copiarTexto(waResultados.bienvenidaEN)" class="text-[10px] text-dt-muted hover:text-dt-primary smooth flex items-center gap-1"><i data-lucide="copy" class="w-3 h-3"></i> Copy</button>
+              </div>
+              <p class="text-xs text-dt-text leading-relaxed whitespace-pre-wrap" x-text="waResultados.bienvenidaEN"></p>
+            </div>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] text-dt-primary font-bold uppercase tracking-widest">Mensaje de ausencia</span>
+                <button @click="copiarTexto(waResultados.ausencia)" class="text-[10px] text-dt-muted hover:text-dt-primary smooth flex items-center gap-1"><i data-lucide="copy" class="w-3 h-3"></i> Copiar</button>
+              </div>
+              <p class="text-xs text-dt-text leading-relaxed whitespace-pre-wrap" x-text="waResultados.ausencia"></p>
+            </div>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] text-dt-primary font-bold uppercase tracking-widest">Respuestas rápidas</span>
+                <button @click="copiarTexto(waResultados.rapidas)" class="text-[10px] text-dt-muted hover:text-dt-primary smooth flex items-center gap-1"><i data-lucide="copy" class="w-3 h-3"></i> Copiar</button>
+              </div>
+              <p class="text-xs text-dt-text leading-relaxed whitespace-pre-wrap" x-text="waResultados.rapidas"></p>
+            </div>
+            <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-[11px] text-blue-700 leading-relaxed">
+              💡 <strong>Cómo usarlos:</strong> WhatsApp Business → Configuración → Herramientas para la empresa → pegá cada texto. WhatsApp los manda automático.
+            </div>
+          </div>
+        </template>
+        <template x-if="waError">
+          <div class="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-600" x-text="waError"></div>
+        </template>
+      </div>
+
+      <!-- EXPORTAR -->
+      <div class="p-5 border-t border-slate-100">
+        <p class="text-xs text-dt-muted mb-3 leading-relaxed">Descargá los archivos y reemplazalos en GitHub para que los cambios queden permanentes.</p>
+        <div class="grid grid-cols-2 gap-2">
+          <button @click="exportConfig()" class="bg-slate-100 hover:bg-slate-200 py-2.5 rounded-xl font-bold text-sm smooth flex items-center justify-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> config.js</button>
+          <button @click="exportProducts()" class="bg-slate-100 hover:bg-slate-200 py-2.5 rounded-xl font-bold text-sm smooth flex items-center justify-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> products.js</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js" defer></script>
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<script>
+function storeApp() {
+  return {
+    store: {}, products: [], searchQuery: '', selectedCategory: 'all',
+    selectedProduct: null, isCartOpen: false, faqOpen: false, openFaq: null,
+    cart: [], checkoutForm: { name: '', address: '', notes: '', deliveryMethod: 'shipping' },
+    adminOpen: false, isLogged: false, passwordInput: '', loginError: false,
+    adminTab: 'products', adminData: { colors: {} }, editingProduct: null,
+    newPassword: '', mobileMenu: false,
+    colorLabels: { primary: 'Color principal', primaryHover: 'Principal (hover)', accent: 'Color acento', accentHover: 'Acento (hover)', background: 'Fondo', textMain: 'Texto principal', textMuted: 'Texto secundario' },
+    waConfig: { servicios: '', horarios: '', zona: '', tiempoEntrega: '', pagos: '', extra: '' },
+    waResultados: null, waGenerando: false, waError: null,
+
+    init() {
+      const sc = localStorage.getItem('domustech_config');
+      this.store = sc ? JSON.parse(sc) : JSON.parse(JSON.stringify(window.STORE_CONFIG || {}));
+      if (!this.store.colors) this.store.colors = {};
+      const sp = localStorage.getItem('domustech_products');
+      this.products = sp ? JSON.parse(sp) : JSON.parse(JSON.stringify(window.PRODUCTS_DATA || []));
+      const cartSaved = localStorage.getItem('domustech_cart');
+      if (cartSaved) this.cart = JSON.parse(cartSaved);
+      this.resetAdminData();
+      const sw = localStorage.getItem('domustech_wa_config');
+      if (sw) this.waConfig = JSON.parse(sw);
+      window.addEventListener('scroll', () => { this.scrolled = window.scrollY > 60; });
+      this.$nextTick(() => { lucide.createIcons(); this.setupReveal(); });
+    },
+
+    setupReveal() {
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+      }, { threshold: 0.1 });
+      document.querySelectorAll('[data-reveal]').forEach(el => obs.observe(el));
+    },
+
+    get categories() {
+      return [...new Set(this.products.map(p => p.category))];
+    },
+
+    filteredProducts() {
+      return this.products.filter(p => {
+        const matchCat = this.selectedCategory === 'all' || p.category === this.selectedCategory;
+        const matchSearch = !this.searchQuery || p.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || p.description.toLowerCase().includes(this.searchQuery.toLowerCase());
+        return matchCat && matchSearch;
+      });
+    },
+
+    formatPrice(price) {
+      return '$' + Number(price).toLocaleString('es-AR');
+    },
+
+    openDetail(product) {
+      this.selectedProduct = product;
+      this.$nextTick(() => lucide.createIcons());
+    },
+
+    addToCart(product) {
+      const existing = this.cart.find(i => i.product.id === product.id);
+      if (existing) { existing.quantity++; }
+      else { this.cart.push({ product, quantity: 1 }); }
+      this.saveCart();
+      this.$nextTick(() => lucide.createIcons());
+    },
+
+    removeFromCart(item) {
+      this.cart = this.cart.filter(i => i.product.id !== item.product.id);
+      this.saveCart();
+    },
+
+    changeQty(item, delta) {
+      item.quantity += delta;
+      if (item.quantity <= 0) this.removeFromCart(item);
+      else this.saveCart();
+    },
+
+    cartCount() { return this.cart.reduce((sum, i) => sum + i.quantity, 0); },
+    getCartTotal() { return this.cart.reduce((sum, i) => sum + i.product.price * i.quantity, 0); },
+    saveCart() { localStorage.setItem('domustech_cart', JSON.stringify(this.cart)); },
+
+    checkoutWhatsApp() {
+      if (!this.checkoutForm.name.trim()) { alert('Ingresá tu nombre para continuar.'); return; }
+      if (!this.checkoutForm.address.trim()) { alert('Ingresá tu dirección o indicá si retirás.'); return; }
+      let msg = `*Pedido DomusTech* 🛒\n\n`;
+      this.cart.forEach(i => { msg += `• ${i.product.name} x${i.quantity} — ${this.formatPrice(i.product.price * i.quantity)}\n`; });
+      msg += `\n*Total: ${this.formatPrice(this.getCartTotal())}*\n`;
+      msg += `\nNombre: ${this.checkoutForm.name}`;
+      msg += `\nEntrega: ${this.checkoutForm.deliveryMethod === 'shipping' ? 'Envío a domicilio' : 'Retiro en local'}`;
+      msg += `\nDirección: ${this.checkoutForm.address}`;
+      if (this.checkoutForm.notes) msg += `\nNotas: ${this.checkoutForm.notes}`;
+      const url = `https://wa.me/${this.store.whatsappNumber}?text=${encodeURIComponent(msg)}`;
+      window.open(url, '_blank');
+      if (confirm('Pedido enviado a WhatsApp. ¿Querés vaciar el carrito?')) {
+        this.cart = []; this.saveCart(); this.isCartOpen = false;
+        this.checkoutForm = { name: '', address: '', notes: '', deliveryMethod: 'shipping' };
+      }
+    },
+
+    login() {
+      if (this.passwordInput === (this.store.adminPassword || 'domustech2026')) {
+        this.isLogged = true; this.loginError = false; this.passwordInput = '';
+        this.resetAdminData(); this.$nextTick(() => lucide.createIcons());
+      } else { this.loginError = true; }
+    },
+    logout() { this.isLogged = false; this.editingProduct = null; },
+
+    resetAdminData() {
+      this.adminData = {
+        storeName: this.store.storeName || 'DomusTech',
+        storeTagline: this.store.storeTagline || '',
+        whatsappNumber: this.store.whatsappNumber || '',
+        address: this.store.address || '',
+        workingHours: this.store.workingHours || '',
+        logoUrl: this.store.logoUrl || '',
+        heroTitle: this.store.hero?.title || '',
+        heroSubtitle: this.store.hero?.subtitle || '',
+        colors: Object.assign({}, this.store.colors)
+      };
+    },
+
+    saveStoreData() {
+      this.store.storeName = this.adminData.storeName;
+      this.store.storeTagline = this.adminData.storeTagline;
+      this.store.whatsappNumber = this.adminData.whatsappNumber;
+      this.store.address = this.adminData.address;
+      this.store.workingHours = this.adminData.workingHours;
+      this.store.logoUrl = this.adminData.logoUrl;
+      if (!this.store.hero) this.store.hero = {};
+      this.store.hero.title = this.adminData.heroTitle;
+      this.store.hero.subtitle = this.adminData.heroSubtitle;
+      this.store.colors = Object.assign({}, this.adminData.colors);
+      this.persistConfig();
+      alert('Guardado. Recargá la página para ver los colores actualizados.');
+    },
+
+    handleLogoImage(e) {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => { this.adminData.logoUrl = ev.target.result; };
+      reader.readAsDataURL(file);
+    },
+
+    newProduct() {
+      this.editingProduct = { id: null, name: '', description: '', price: 0, category: '', image: '', images: [], tag: '', inStock: true, featured: false };
+      this.$nextTick(() => lucide.createIcons());
+    },
+    editProduct(p) { this.editingProduct = JSON.parse(JSON.stringify(p)); this.$nextTick(() => lucide.createIcons()); },
+    handleProductImage(e) {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => { this.editingProduct.image = ev.target.result; };
+      reader.readAsDataURL(file);
+    },
+    saveProduct() {
+      if (!this.editingProduct.name.trim()) { alert('El producto necesita un nombre.'); return; }
+      if (!this.editingProduct.category.trim()) { alert('El producto necesita una categoría.'); return; }
+      if (this.editingProduct.id) {
+        const idx = this.products.findIndex(p => p.id === this.editingProduct.id);
+        if (idx !== -1) this.products[idx] = this.editingProduct;
+      } else {
+        this.editingProduct.id = Date.now();
+        this.products.push(this.editingProduct);
+      }
+      this.persistProducts(); this.editingProduct = null;
+      this.$nextTick(() => lucide.createIcons());
+    },
+    deleteProduct(p) {
+      if (!confirm(`¿Eliminar "${p.name}"?`)) return;
+      this.products = this.products.filter(x => x.id !== p.id);
+      this.persistProducts(); this.$nextTick(() => lucide.createIcons());
+    },
+    changePassword() {
+      if (!this.newPassword.trim()) { alert('Escribí una clave nueva.'); return; }
+      this.store.adminPassword = this.newPassword.trim();
+      this.persistConfig(); this.newPassword = ''; alert('Clave actualizada.');
+    },
+    async generarRespuestasWA() {
+      if (!this.waConfig.servicios.trim()) { alert('Completá al menos los productos y precios.'); return; }
+      this.waGenerando = true; this.waError = null; this.waResultados = null;
+      const prompt = `Sos el asistente de DomusTech, una tienda de electrodomésticos y climatización en Buenos Aires, Argentina.
+
+Información del negocio:
+- Productos y precios: ${this.waConfig.servicios}
+- Horarios: ${this.waConfig.horarios || 'No especificado'}
+- Zona de entrega: ${this.waConfig.zona || 'No especificado'}
+- Tiempo de entrega: ${this.waConfig.tiempoEntrega || 'No especificado'}
+- Formas de pago: ${this.waConfig.pagos || 'No especificado'}
+- Destacar: ${this.waConfig.extra || 'Nada adicional'}
+
+Generá exactamente este JSON (sin markdown, sin explicaciones, solo el JSON):
+{
+  "bienvenidaES": "Mensaje de bienvenida en español, profesional y amigable, máximo 3 párrafos. Mencioná que tienen garantía oficial y que responden rápido.",
+  "bienvenidaEN": "Same welcome message in English, professional and friendly, max 3 paragraphs.",
+  "ausencia": "Mensaje de ausencia en español e inglés indicando horarios y que responderán a la brevedad.",
+  "rapidas": "3 respuestas rápidas numeradas: 1) Productos destacados con precios, 2) Info de entrega y zona, 3) Formas de pago y garantía."
+}`;
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+        });
+        const data = await res.json();
+        const text = data.content?.[0]?.text || '';
+        const clean = text.replace(/```json|```/g, '').trim();
+        this.waResultados = JSON.parse(clean);
+        localStorage.setItem('domustech_wa_config', JSON.stringify(this.waConfig));
+        this.$nextTick(() => lucide.createIcons());
+      } catch(e) {
+        this.waError = 'No se pudo generar. Verificá que la API key esté activa. Error: ' + e.message;
+      }
+      this.waGenerando = false;
+    },
+    copiarTexto(texto) {
+      navigator.clipboard.writeText(texto).then(() => { alert('¡Copiado! Pegalo en WhatsApp Business.'); });
+    },
+    async persistConfig() {
+      localStorage.setItem('domustech_config', JSON.stringify(this.store));
+      try { await sbGuardarConfig(this.store); } catch(e) { console.warn('Supabase config:', e); }
+    },
+    async persistProducts() {
+      localStorage.setItem('domustech_products', JSON.stringify(this.products));
+      try { await sbGuardarProductos(this.products); } catch(e) { console.warn('Supabase products:', e); }
+    },
+    exportConfig() {
+      const c = `const STORE_CONFIG = ${JSON.stringify(this.store, null, 2)};\n\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports = STORE_CONFIG;\n} else {\n  window.STORE_CONFIG = STORE_CONFIG;\n}\n`;
+      this.downloadFile('config.js', c);
+    },
+    exportProducts() {
+      const c = `const PRODUCTS_DATA = ${JSON.stringify(this.products, null, 2)};\n\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports = PRODUCTS_DATA;\n} else {\n  window.PRODUCTS_DATA = PRODUCTS_DATA;\n}\n`;
+      this.downloadFile('products.js', c);
+    },
+    downloadFile(filename, content) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([content], {type:'text/javascript'}));
+      a.download = filename; a.click();
+    }
+  };
+}
+</script>
+</body>
+</html>
