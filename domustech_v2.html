@@ -14,8 +14,8 @@
 <script src="products.js"></script>
 <script>
   // Supabase config
-  const SUPABASE_URL = 'https://erjrvwrqujuzmxtkhvrw.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_o2woVUsiumTBfeHTIuJlEQ_l1k57h0R';
+  const SUPABASE_URL = 'https://tijfounmgknzejdlmymw.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_35hx6BdVzYh1oTAiZSXJ1w_ebGfdMdB';
   const TIENDA_ID = 'domustech'; // ID único por tienda
 
   async function sbFetch(path, options = {}) {
@@ -836,17 +836,30 @@ function storeApp() {
     waConfig: { servicios: '', horarios: '', zona: '', tiempoEntrega: '', pagos: '', extra: '' },
     waResultados: null, waGenerando: false, waError: null,
 
-    init() {
-      const sc = localStorage.getItem('domustech_config');
-      this.store = sc ? JSON.parse(sc) : JSON.parse(JSON.stringify(window.STORE_CONFIG || {}));
+    cargando: true,
+
+    async init() {
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+      try {
+        const [cfgRemoto, prodsRemoto] = await Promise.race([
+          Promise.all([sbCargarConfig(), sbCargarProductos()]),
+          timeout.then(() => { throw new Error('timeout'); })
+        ]);
+        this.store = cfgRemoto || JSON.parse(localStorage.getItem('domustech_config') || 'null') || JSON.parse(JSON.stringify(window.STORE_CONFIG || {}));
+        this.products = prodsRemoto.length > 0 ? prodsRemoto : JSON.parse(localStorage.getItem('domustech_products') || 'null') || JSON.parse(JSON.stringify(window.PRODUCTS_DATA || []));
+      } catch(e) {
+        const sc = localStorage.getItem('domustech_config');
+        this.store = sc ? JSON.parse(sc) : JSON.parse(JSON.stringify(window.STORE_CONFIG || {}));
+        const sp = localStorage.getItem('domustech_products');
+        this.products = sp ? JSON.parse(sp) : JSON.parse(JSON.stringify(window.PRODUCTS_DATA || []));
+      }
       if (!this.store.colors) this.store.colors = {};
-      const sp = localStorage.getItem('domustech_products');
-      this.products = sp ? JSON.parse(sp) : JSON.parse(JSON.stringify(window.PRODUCTS_DATA || []));
       const cartSaved = localStorage.getItem('domustech_cart');
       if (cartSaved) this.cart = JSON.parse(cartSaved);
-      this.resetAdminData();
       const sw = localStorage.getItem('domustech_wa_config');
       if (sw) this.waConfig = JSON.parse(sw);
+      this.cargando = false;
+      this.resetAdminData();
       window.addEventListener('scroll', () => { this.scrolled = window.scrollY > 60; });
       this.$nextTick(() => { lucide.createIcons(); this.setupReveal(); });
     },
