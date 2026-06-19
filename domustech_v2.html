@@ -821,11 +821,13 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: #fff; }
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" defer></script>
 <script src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js" defer></script>
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <script>
 function storeApp() {
   return {
+    _sb: null,
     store: {}, products: [], searchQuery: '', selectedCategory: 'all',
     selectedProduct: null, isCartOpen: false, faqOpen: false, openFaq: null,
     cart: [], checkoutForm: { name: '', address: '', notes: '', deliveryMethod: 'shipping' },
@@ -836,34 +838,57 @@ function storeApp() {
     waConfig: { servicios: '', horarios: '', zona: '', tiempoEntrega: '', pagos: '', extra: '' },
     waResultados: null, waGenerando: false, waError: null,
 
-    cargando: true,
-
-    async init() {
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
-      try {
-        const [cfgRemoto, prodsRemoto] = await Promise.race([
-          Promise.all([sbCargarConfig(), sbCargarProductos()]),
-          timeout.then(() => { throw new Error('timeout'); })
-        ]);
-        this.store = cfgRemoto || JSON.parse(localStorage.getItem('domustech_config') || 'null') || JSON.parse(JSON.stringify(window.STORE_CONFIG || {}));
-        this.products = prodsRemoto.length > 0 ? prodsRemoto : JSON.parse(localStorage.getItem('domustech_products') || 'null') || JSON.parse(JSON.stringify(window.PRODUCTS_DATA || []));
-      } catch(e) {
-        const sc = localStorage.getItem('domustech_config');
-        this.store = sc ? JSON.parse(sc) : JSON.parse(JSON.stringify(window.STORE_CONFIG || {}));
-        const sp = localStorage.getItem('domustech_products');
-        this.products = sp ? JSON.parse(sp) : JSON.parse(JSON.stringify(window.PRODUCTS_DATA || []));
-      }
+    init() {
+      this._sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      const sc = localStorage.getItem('domustech_config');
+      this.store = sc ? JSON.parse(sc) : JSON.parse(JSON.stringify(window.STORE_CONFIG || {}));
       if (!this.store.colors) this.store.colors = {};
+      const sp = localStorage.getItem('domustech_products');
+      this.products = sp ? JSON.parse(sp) : JSON.parse(JSON.stringify(window.PRODUCTS_DATA || []));
       const cartSaved = localStorage.getItem('domustech_cart');
       if (cartSaved) this.cart = JSON.parse(cartSaved);
+      this.resetAdminData();
       const sw = localStorage.getItem('domustech_wa_config');
       if (sw) this.waConfig = JSON.parse(sw);
-      this.cargando = false;
-      this.resetAdminData();
       window.addEventListener('scroll', () => { this.scrolled = window.scrollY > 60; });
       this.$nextTick(() => { lucide.createIcons(); this.setupReveal(); });
+      Promise.all([sbCargarConfig(), sbCargarProductos()])
+        .then(([cfg, prods]) => {
+          if (cfg) { this.store = cfg; this.resetAdminData(); }
+          if (prods && prods.length > 0) this.products = prods;
+          this.$nextTick(() => lucide.createIcons());
+        }).catch(e => console.warn('Supabase:', e));
     },
 
+    async compressImage(file, maxWidth = 900, quality = 0.82) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        img.onload = () => {
+          const ratio = Math.min(maxWidth / img.width, 1);
+          const canvas = document.createElement('canvas');
+          canvas.width  = Math.round(img.width  * ratio);
+          canvas.height = Math.round(img.height * ratio);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(blob => {
+            URL.revokeObjectURL(objectUrl);
+            blob ? resolve(blob) : reject(new Error('Canvas toBlob falló'));
+          }, 'image/webp', quality);
+        };
+        img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Error cargando imagen')); };
+        img.src = objectUrl;
+      });
+    },
+    async uploadToStorage(file, folder = TIENDA_ID) {
+      const blob = await this.compressImage(file);
+      const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}.webp`;
+      const { data, error } = await this._sb.storage.from('tienda-images').upload(path, blob, {
+        contentType: 'image/webp', upsert: false
+      });
+      if (error) throw error;
+      const { data: { publicUrl } } = this._sb.storage.from('tienda-images').getPublicUrl(data.path);
+      return publicUrl;
+    },
     setupReveal() {
       const obs = new IntersectionObserver((entries) => {
         entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
@@ -970,11 +995,14 @@ function storeApp() {
       alert('Guardado. Recargá la página para ver los colores actualizados.');
     },
 
-    handleLogoImage(e) {
+    async handleLogoImage(e) {
       const file = e.target.files[0]; if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => { this.adminData.logoUrl = ev.target.result; };
-      reader.readAsDataURL(file);
+      try {
+        this.adminData.logoUrl = await this.uploadToStorage(file, TIENDA_ID + '/logos');
+      } catch(err) {
+        console.error('Error subiendo logo:', err);
+        alert('No se pudo subir el logo. Verificá tu conexión.');
+      }
     },
 
     newProduct() {
@@ -982,11 +1010,14 @@ function storeApp() {
       this.$nextTick(() => lucide.createIcons());
     },
     editProduct(p) { this.editingProduct = JSON.parse(JSON.stringify(p)); this.$nextTick(() => lucide.createIcons()); },
-    handleProductImage(e) {
+    async handleProductImage(e) {
       const file = e.target.files[0]; if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => { this.editingProduct.image = ev.target.result; };
-      reader.readAsDataURL(file);
+      try {
+        this.editingProduct.image = await this.uploadToStorage(file);
+      } catch(err) {
+        console.error('Error subiendo imagen:', err);
+        alert('No se pudo subir la foto. Verificá tu conexión.');
+      }
     },
     saveProduct() {
       if (!this.editingProduct.name.trim()) { alert('El producto necesita un nombre.'); return; }
@@ -1052,11 +1083,11 @@ Generá exactamente este JSON (sin markdown, sin explicaciones, solo el JSON):
       navigator.clipboard.writeText(texto).then(() => { alert('¡Copiado! Pegalo en WhatsApp Business.'); });
     },
     async persistConfig() {
-      localStorage.setItem('domustech_config', JSON.stringify(this.store));
+      try { localStorage.setItem('domustech_config', JSON.stringify(this.store)); } catch(e) { console.warn('localStorage config lleno:', e); }
       try { await sbGuardarConfig(this.store); } catch(e) { console.warn('Supabase config:', e); }
     },
     async persistProducts() {
-      localStorage.setItem('domustech_products', JSON.stringify(this.products));
+      try { localStorage.setItem('domustech_products', JSON.stringify(this.products)); } catch(e) { console.warn('localStorage products lleno:', e); }
       try { await sbGuardarProductos(this.products); } catch(e) { console.warn('Supabase products:', e); }
     },
     exportConfig() {
